@@ -47,5 +47,5 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
 	version = "v1.0.0"
 
 [[constraint]]
-  branch = "master"
-  name = "github.com/pkg/term"
+  name = "github.com/Masterminds/semver"
+  version = "1.4.0"

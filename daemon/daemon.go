@@ -134,14 +134,21 @@ func (d *Daemon) ListServices(ctx context.Context, namespace string) ([]v6.Contr
 	return res, nil
 }
 
-type clusterContainers []cluster.Controller
+type clusterContainers struct {
+	controllers []cluster.Controller
+	policies    policy.ResourceMap
+}
 
 func (cs clusterContainers) Len() int {
-	return len(cs)
+	return len(cs.controllers)
 }
 
 func (cs clusterContainers) Containers(i int) []resource.Container {
-	return cs[i].ContainersOrNil()
+	return cs.controllers[i].ContainersOrNil()
+}
+
+func (cs clusterContainers) Pattern(i int, container string) policy.Pattern {
+	return policy.GetTagPattern(cs.policies, cs.controllers[i].ID, container)
 }
 
 // ListImages - deprecated from v10, lists the images available for set of services
@@ -163,14 +170,14 @@ func (d *Daemon) ListImagesWithOptions(ctx context.Context, opts v10.ListImagesO
 		services, err = d.Cluster.SomeControllers([]flux.ResourceID{id})
 	}
 
-	imageRepos, err := update.FetchImageRepos(d.Registry, clusterContainers(services), d.Logger)
-	if err != nil {
-		return nil, errors.Wrap(err, "getting images for services")
-	}
-
 	policyResourceMap, _, err := d.getPolicyResourceMap(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	imageRepos, err := update.FetchImageRepos(d.Registry, clusterContainers{controllers: services, policies: policyResourceMap}, d.Logger)
+	if err != nil {
+		return nil, errors.Wrap(err, "getting images for services")
 	}
 
 	var res []v6.ImageStatus

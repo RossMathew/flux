@@ -33,7 +33,7 @@ func (d *Daemon) pollForNewImages(logger log.Logger) {
 		return
 	}
 	// Check the latest available image(s) for each service
-	imageRepos, err := update.FetchImageRepos(d.Registry, clusterContainers(services), logger)
+	imageRepos, err := update.FetchImageRepos(d.Registry, clusterContainers{controllers: services, policies: candidateServicesPolicyMap}, logger)
 	if err != nil {
 		logger.Log("error", errors.Wrap(err, "fetching image updates"))
 		return
