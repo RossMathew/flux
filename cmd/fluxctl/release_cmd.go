@@ -22,6 +22,7 @@ type controllerReleaseOpts struct {
 	exclude        []string
 	dryRun         bool
 	interactive    bool
+	force          bool
 	outputOpts
 	cause update.Cause
 
@@ -55,6 +56,7 @@ func (opts *controllerReleaseOpts) Command() *cobra.Command {
 	cmd.Flags().StringSliceVar(&opts.exclude, "exclude", []string{}, "List of controllers to exclude")
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Do not release anything; just report back what would have been done")
 	cmd.Flags().BoolVar(&opts.interactive, "interactive", false, "Select interactively which containers to update")
+	cmd.Flags().BoolVarP(&opts.force, "force", "f", false, "Force ignoring container restrictions such as locks and filters")
 
 	// Deprecated
 	cmd.Flags().StringSliceVarP(&opts.services, "service", "s", []string{}, "Service to release")
@@ -133,6 +135,7 @@ func (opts *controllerReleaseOpts) RunE(cmd *cobra.Command, args []string) error
 		ImageSpec:    image,
 		Kind:         kind,
 		Excludes:     excludes,
+		Force:        opts.force,
 	}
 	jobID, err := opts.API.UpdateManifests(ctx, update.Spec{
 		Type:  update.Images,

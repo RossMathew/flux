@@ -37,7 +37,7 @@ realclean: clean
 	rm -rf ./cache
 
 test:
-	PATH=${PATH}:${PWD}/bin go test ${TEST_FLAGS} $(shell go list ./... | grep -v "^github.com/weaveworks/flux/vendor" | sort -u)
+	PATH=${PATH}:${PWD}/bin go test ${TEST_FLAGS} ./release/*.go -run Test_Force
 
 build/.%.done: docker/Dockerfile.%
 	mkdir -p ./build/docker/$*

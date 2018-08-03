@@ -154,6 +154,11 @@ var ignoredNotInCluster = update.ControllerResult{
 	Error:  update.NotInCluster,
 }
 
+var skippedLocked = update.ControllerResult{
+	Status: update.ReleaseStatusSkipped,
+	Error:  update.Locked,
+}
+
 var skippedNotInCluster = update.ControllerResult{
 	Status: update.ReleaseStatusSkipped,
 	Error:  update.NotInCluster,
@@ -352,6 +357,212 @@ func Test_FilterLogic(t *testing.T) {
 				flux.MustParseResourceID("default:deployment/list-deploy"):    ignoredNotIncluded,
 				flux.MustParseResourceID("default:deployment/semver"):         ignoredNotIncluded,
 				flux.MustParseResourceID(notInRepoService):                    skippedNotInRepo,
+			},
+		},
+	} {
+		t.Run(tst.Name, func(t *testing.T) {
+			checkout, cleanup := setup(t)
+			defer cleanup()
+			testRelease(t, &ReleaseContext{
+				cluster:   cluster,
+				manifests: mockManifests,
+				registry:  mockRegistry,
+				repo:      checkout,
+			}, tst.Spec, tst.Expected)
+		})
+	}
+}
+
+func Test_Force_lockedController(t *testing.T) {
+	cluster := mockCluster(lockedSvc)
+	success := update.ControllerResult{
+		Status: update.ReleaseStatusSuccess,
+		PerContainer: []update.ContainerUpdate{
+			{
+				Container: lockedContainer,
+				Current:   oldLockedRef,
+				Target:    newLockedRef,
+			},
+		},
+	}
+	for _, tst := range []struct {
+		Name     string
+		Spec     update.ReleaseSpec
+		Expected update.Result
+	}{
+		{
+			Name: "locked service (--controller --update-image)",
+			Spec: update.ReleaseSpec{
+				ServiceSpecs: []update.ResourceSpec{lockedSvcSpec},
+				ImageSpec:    update.ImageSpecFromRef(newLockedRef),
+				Kind:         update.ReleaseKindExecute,
+				Excludes:     []flux.ResourceID{},
+				Force:        true,
+			},
+			Expected: update.Result{
+				flux.MustParseResourceID("default:deployment/locked-service"): success,
+				flux.MustParseResourceID("default:deployment/helloworld"):     ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/test-service"):   ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/multi-deploy"):   ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/list-deploy"):    ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/semver"):         ignoredNotIncluded,
+			},
+		},
+		{
+			Name: "locked service (--all --update-image)",
+			Spec: update.ReleaseSpec{
+				ServiceSpecs: []update.ResourceSpec{update.ResourceSpecAll},
+				ImageSpec:    update.ImageSpecFromRef(newLockedRef),
+				Kind:         update.ReleaseKindExecute,
+				Excludes:     []flux.ResourceID{},
+				Force:        true,
+			},
+			Expected: update.Result{
+				flux.MustParseResourceID("default:deployment/locked-service"): skippedLocked,
+				flux.MustParseResourceID("default:deployment/helloworld"):     skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/test-service"):   skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/multi-deploy"):   skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/list-deploy"):    skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/semver"):         skippedNotInCluster,
+			},
+		},
+		{
+			Name: "locked service (--controller --update-all-image)",
+			Spec: update.ReleaseSpec{
+				ServiceSpecs: []update.ResourceSpec{lockedSvcSpec},
+				ImageSpec:    update.ImageSpecLatest,
+				Kind:         update.ReleaseKindExecute,
+				Excludes:     []flux.ResourceID{},
+				Force:        true,
+			},
+			Expected: update.Result{
+				flux.MustParseResourceID("default:deployment/locked-service"): success,
+				flux.MustParseResourceID("default:deployment/helloworld"):     ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/test-service"):   ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/multi-deploy"):   ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/list-deploy"):    ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/semver"):         ignoredNotIncluded,
+			},
+		},
+		{
+			Name: "locked service (--all --update-all-image)",
+			Spec: update.ReleaseSpec{
+				ServiceSpecs: []update.ResourceSpec{update.ResourceSpecAll},
+				ImageSpec:    update.ImageSpecLatest,
+				Kind:         update.ReleaseKindExecute,
+				Excludes:     []flux.ResourceID{},
+				Force:        true,
+			},
+			Expected: update.Result{
+				flux.MustParseResourceID("default:deployment/locked-service"): skippedLocked,
+				flux.MustParseResourceID("default:deployment/helloworld"):     skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/test-service"):   skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/multi-deploy"):   skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/list-deploy"):    skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/semver"):         skippedNotInCluster,
+			},
+		},
+	} {
+		t.Run(tst.Name, func(t *testing.T) {
+			checkout, cleanup := setup(t)
+			defer cleanup()
+			testRelease(t, &ReleaseContext{
+				cluster:   cluster,
+				manifests: mockManifests,
+				registry:  mockRegistry,
+				repo:      checkout,
+			}, tst.Spec, tst.Expected)
+		})
+	}
+}
+
+func Test_Force_filteredContainer(t *testing.T) {
+	cluster := mockCluster(lockedSvc)
+	success := update.ControllerResult{
+		Status: update.ReleaseStatusSuccess,
+		PerContainer: []update.ContainerUpdate{
+			{
+				Container: lockedContainer,
+				Current:   oldLockedRef,
+				Target:    newLockedRef,
+			},
+		},
+	}
+	for _, tst := range []struct {
+		Name     string
+		Spec     update.ReleaseSpec
+		Expected update.Result
+	}{
+		{
+			Name: "locked service (--controller --update-image)",
+			Spec: update.ReleaseSpec{
+				ServiceSpecs: []update.ResourceSpec{lockedSvcSpec},
+				ImageSpec:    update.ImageSpecFromRef(newLockedRef),
+				Kind:         update.ReleaseKindExecute,
+				Excludes:     []flux.ResourceID{},
+				Force:        true,
+			},
+			Expected: update.Result{
+				flux.MustParseResourceID("default:deployment/locked-service"): success,
+				flux.MustParseResourceID("default:deployment/helloworld"):     ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/test-service"):   ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/multi-deploy"):   ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/list-deploy"):    ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/semver"):         ignoredNotIncluded,
+			},
+		},
+		{
+			Name: "locked service (--all --update-image)",
+			Spec: update.ReleaseSpec{
+				ServiceSpecs: []update.ResourceSpec{update.ResourceSpecAll},
+				ImageSpec:    update.ImageSpecFromRef(newLockedRef),
+				Kind:         update.ReleaseKindExecute,
+				Excludes:     []flux.ResourceID{},
+				Force:        true,
+			},
+			Expected: update.Result{
+				flux.MustParseResourceID("default:deployment/locked-service"): skippedLocked,
+				flux.MustParseResourceID("default:deployment/helloworld"):     skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/test-service"):   skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/multi-deploy"):   skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/list-deploy"):    skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/semver"):         skippedNotInCluster,
+			},
+		},
+		{
+			Name: "locked service (--controller --update-all-image)",
+			Spec: update.ReleaseSpec{
+				ServiceSpecs: []update.ResourceSpec{lockedSvcSpec},
+				ImageSpec:    update.ImageSpecLatest,
+				Kind:         update.ReleaseKindExecute,
+				Excludes:     []flux.ResourceID{},
+				Force:        true,
+			},
+			Expected: update.Result{
+				flux.MustParseResourceID("default:deployment/locked-service"): success,
+				flux.MustParseResourceID("default:deployment/helloworld"):     ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/test-service"):   ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/multi-deploy"):   ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/list-deploy"):    ignoredNotIncluded,
+				flux.MustParseResourceID("default:deployment/semver"):         ignoredNotIncluded,
+			},
+		},
+		{
+			Name: "locked service (--all --update-all-image)",
+			Spec: update.ReleaseSpec{
+				ServiceSpecs: []update.ResourceSpec{update.ResourceSpecAll},
+				ImageSpec:    update.ImageSpecLatest,
+				Kind:         update.ReleaseKindExecute,
+				Excludes:     []flux.ResourceID{},
+				Force:        true,
+			},
+			Expected: update.Result{
+				flux.MustParseResourceID("default:deployment/locked-service"): skippedLocked,
+				flux.MustParseResourceID("default:deployment/helloworld"):     skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/test-service"):   skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/multi-deploy"):   skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/list-deploy"):    skippedNotInCluster,
+				flux.MustParseResourceID("default:deployment/semver"):         skippedNotInCluster,
 			},
 		},
 	} {
